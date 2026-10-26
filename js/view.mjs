@@ -383,17 +383,31 @@ export function createView(dispatch) {
     "record-error",
     "delete-record-button"
   ].forEach((id) => {
-    elements[id] = document.getElementById(id);
+    const element = document.getElementById(id);
+    assert(element, "页面缺少必需元素 #" + id + "。");
+    elements[id] = element;
   });
-  elements["header-date"].textContent = new Intl.DateTimeFormat("zh-CN", {
-    month: "long",
-    day: "numeric",
-    weekday: "short"
-  }).format(new Date());
+
+  const now = new Date();
+  const todayKey = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+  elements["header-date"].textContent = formatHeaderDate(todayKey);
+
+  let focusBeforeActionDialog = null;
+  let focusBeforeRecordDialog = null;
+
+  function restoreFocus(element) {
+    if (element && typeof element.focus === "function") {
+      element.focus({ preventScroll: true });
+    }
+  }
 
   function setMessage(element, message, isError = false) {
     element.textContent = message;
-    element.style.color = isError ? "var(--danger)" : "";
+    element.classList.toggle("is-error", Boolean(isError && message));
   }
 
   function confirmAction(message, label, title = "请确认") {
@@ -402,10 +416,20 @@ export function createView(dispatch) {
     elements["action-dialog-message"].textContent = message;
     elements["action-dialog-confirm"].textContent = label;
     dialog.returnValue = "";
+    focusBeforeActionDialog = document.querySelector(":focus");
     return new Promise((resolve) => {
-      dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
+      dialog.addEventListener("close", () => {
+        const confirmed = dialog.returnValue === "confirm";
+        restoreFocus(focusBeforeActionDialog);
+        focusBeforeActionDialog = null;
+        resolve(confirmed);
+      }, { once: true });
       dialog.showModal();
     });
+  }
+
+  function weekendNote(record) {
+    return record.isWeekday ? "" : " · 周末，不计冷却";
   }
 
   function renderTodayStatus() {
@@ -463,17 +487,16 @@ export function createView(dispatch) {
       if (record.status === "restaurant") {
         detail.append(makeElement("h2", "", record.restaurantName));
         const source = SOURCE_LABELS[record.source] || "餐厅午餐";
-        const weekendNote = record.isWeekday ? "" : " · 周末，不计冷却";
-        detail.append(makeElement("p", "", source + (record.restaurantId ? "" : " · 未关联") + weekendNote));
+        detail.append(makeElement("p", "", source + (record.restaurantId ? "" : " · 未关联") + weekendNote(record)));
       } else {
         detail.append(makeElement("h2", "", "跳过"));
         const reason = REASON_LABELS[record.reason] || record.reason || "未填写原因";
-        const weekendNote = record.isWeekday ? "" : " · 周末，不计冷却";
-        detail.append(makeElement("p", "", reason + weekendNote));
+        detail.append(makeElement("p", "", reason + weekendNote(record)));
       }
 
       const editButton = makeElement("button", "button button-quiet", "修改");
       editButton.type = "button";
+      editButton.setAttribute("aria-label", "修改 " + record.date + " 的午餐记录");
       editButton.addEventListener("click", () => openRecordDialog(record));
       item.append(date, detail, editButton);
       list.append(item);
@@ -674,7 +697,7 @@ export function createView(dispatch) {
     renderPersonalData();
   }
 
-  function showView(name) {
+  function showView(name, { moveFocus = false } = {}) {
     const validName = ["today", "history", "data", "guide"].includes(name) ? name : "today";
     document.querySelectorAll(".view").forEach((view) => {
       view.hidden = view.id !== "view-" + validName;
@@ -690,6 +713,15 @@ export function createView(dispatch) {
     });
     window.history.replaceState(null, "", "#" + validName);
     window.scrollTo({ top: 0, behavior: scrollBehavior() });
+    if (moveFocus) {
+      const heading = document.querySelector("#view-" + validName + " h1");
+      if (heading) {
+        if (!heading.hasAttribute("tabindex")) {
+          heading.tabIndex = -1;
+        }
+        heading.focus({ preventScroll: true });
+      }
+    }
   }
 
   function scrollBehavior() {
@@ -762,12 +794,19 @@ export function createView(dispatch) {
 
     updateRecordFieldVisibility();
     renderRecordCandidates();
+    focusBeforeRecordDialog = document.querySelector(":focus");
     elements["record-dialog"].showModal();
+    const focusTarget = elements["restaurant-fields"].hidden
+      ? elements["record-date"]
+      : elements["record-restaurant"];
+    focusTarget.focus({ preventScroll: true });
   }
 
   function closeRecordDialog() {
     editingDate = null;
     elements["record-dialog"].close();
+    restoreFocus(focusBeforeRecordDialog);
+    focusBeforeRecordDialog = null;
   }
 
   function applyResult(result) {
@@ -935,12 +974,12 @@ export function createView(dispatch) {
   elements["delete-record-button"].addEventListener("click", deleteEditingRecord);
 
   document.querySelectorAll(".nav-button").forEach((button) => {
-    button.addEventListener("click", () => showView(button.dataset.view));
+    button.addEventListener("click", () => showView(button.dataset.view, { moveFocus: true }));
   });
   document.querySelectorAll("[data-nav]").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      showView(link.dataset.nav);
+      showView(link.dataset.nav, { moveFocus: true });
     });
   });
 
