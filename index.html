@@ -87,7 +87,7 @@
               <div class="ticket-footer"><span>不满意？可以换一家</span><span aria-hidden="true">✦</span></div>
             </div>
 
-            <section id="result-section" class="result-section" hidden aria-labelledby="result-name" aria-live="polite">
+            <section id="result-section" class="result-section" hidden aria-labelledby="result-name">
               <div class="result-card">
                 <div class="ticket-heading"><span>今日午餐签 · 抽到了</span><span aria-hidden="true">LUNCH PICK</span></div>
                 <div class="result-content">
@@ -176,7 +176,7 @@
                 <button id="export-backup-button" class="button button-secondary" type="button">导出个人备份</button>
                 <label class="button button-quiet file-button">
                   导入个人备份
-                  <input id="import-backup-input" type="file" accept="application/json,.json" aria-label="选择个人备份 JSON 文件">
+                  <input id="import-backup-input" type="file" accept="application/json,.json" aria-label="导入个人备份：选择 JSON 文件">
                 </label>
               </div>
             </section>
@@ -195,7 +195,7 @@
               <button id="confirm-names-button" class="button button-primary" type="button" disabled>确认加入待入库</button>
             </div>
             <div id="pending-preview" class="name-preview" aria-live="polite"></div>
-            <div id="pending-list" aria-live="polite"></div>
+            <div id="pending-list"></div>
           </section>
           <details class="data-card">
             <summary>个人正式新增</summary>
@@ -212,7 +212,7 @@
           <details class="data-card">
             <summary>个人隐藏与恢复</summary>
             <p>隐藏只影响这台设备的随机池和有效目录，保留已有午餐记录。共享餐厅资料由维护者统一修订。</p>
-            <div id="managed-restaurants" aria-live="polite"></div>
+            <div id="managed-restaurants"></div>
           </details>
           <section class="data-footnote">
             <h2>共享目录说明</h2>

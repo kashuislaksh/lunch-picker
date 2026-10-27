@@ -400,9 +400,11 @@ export function createView(dispatch) {
   let focusBeforeRecordDialog = null;
 
   function restoreFocus(element) {
-    if (element && typeof element.focus === "function") {
+    if (element?.isConnected && typeof element.focus === "function") {
       element.focus({ preventScroll: true });
+      return document.activeElement === element;
     }
+    return false;
   }
 
   function setMessage(element, message, isError = false) {
@@ -416,7 +418,7 @@ export function createView(dispatch) {
     elements["action-dialog-message"].textContent = message;
     elements["action-dialog-confirm"].textContent = label;
     dialog.returnValue = "";
-    focusBeforeActionDialog = document.querySelector(":focus");
+    focusBeforeActionDialog = document.activeElement;
     return new Promise((resolve) => {
       dialog.addEventListener("close", () => {
         const confirmed = dialog.returnValue === "confirm";
@@ -496,6 +498,7 @@ export function createView(dispatch) {
 
       const editButton = makeElement("button", "button button-quiet", "修改");
       editButton.type = "button";
+      editButton.dataset.recordDate = record.date;
       editButton.setAttribute("aria-label", "修改 " + record.date + " 的午餐记录");
       editButton.addEventListener("click", () => openRecordDialog(record));
       item.append(date, detail, editButton);
@@ -794,7 +797,7 @@ export function createView(dispatch) {
 
     updateRecordFieldVisibility();
     renderRecordCandidates();
-    focusBeforeRecordDialog = document.querySelector(":focus");
+    focusBeforeRecordDialog = document.activeElement;
     elements["record-dialog"].showModal();
     const focusTarget = elements["restaurant-fields"].hidden
       ? elements["record-date"]
@@ -805,7 +808,12 @@ export function createView(dispatch) {
   function closeRecordDialog() {
     editingDate = null;
     elements["record-dialog"].close();
-    restoreFocus(focusBeforeRecordDialog);
+    if (!restoreFocus(focusBeforeRecordDialog) && focusBeforeRecordDialog?.dataset.recordDate) {
+      // Saving rebuilds history; the old opener may no longer be in the DOM.
+      const replacement = [...elements["history-list"].querySelectorAll("button")]
+        .find((button) => button.dataset.recordDate === focusBeforeRecordDialog.dataset.recordDate);
+      restoreFocus(replacement || elements["add-history-button"]);
+    }
     focusBeforeRecordDialog = null;
   }
 
@@ -838,7 +846,7 @@ export function createView(dispatch) {
       if (result.status === "exhausted") {
         setMessage(elements["draw-message"], "本轮候选已经用完。可以重新开始，或者切换范围。", true);
       } else {
-        setMessage(elements["draw-message"], "本轮尚有 " + result.remaining
+        setMessage(elements["draw-message"], "抽到了“" + viewModel.currentRestaurant.name + "”。本轮尚有 " + result.remaining
           + " 家未出现。只在确认后写入记录。");
       }
     } catch (error) {
@@ -899,7 +907,7 @@ export function createView(dispatch) {
       if (result.unlinkedName && await confirmAction("午餐已保存为“" + result.unlinkedName
         + "”。是否把这个名称加入本地待入库？它不会参与随机，也不会自动提交。", "加入待入库", "午餐已保存")) {
         runDataIntent("queueName", { name: result.unlinkedName }, "名称已加入本地待入库。");
-        showView("data");
+        showView("data", { moveFocus: true });
       }
     } catch (error) {
       elements["record-error"].textContent = error.message;
@@ -971,6 +979,10 @@ export function createView(dispatch) {
   });
   elements["close-dialog-button"].addEventListener("click", closeRecordDialog);
   elements["cancel-dialog-button"].addEventListener("click", closeRecordDialog);
+  elements["record-dialog"].addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeRecordDialog();
+  });
   elements["delete-record-button"].addEventListener("click", deleteEditingRecord);
 
   document.querySelectorAll(".nav-button").forEach((button) => {
